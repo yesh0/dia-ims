@@ -1,0 +1,27 @@
+[peaker]
+
+# Set to true to read from the peak cache if the cache is newer.
+# It always writes to a cache file anyway.
+cache = true
+
+# picker = "simple"
+picker = "hires"
+
+debug = 0 # No plots, yet
+# debug = 1 # Plot every spectrum
+# debug = 2 # Plot everything including windowed peak detection results
+
+# Total ion count threshold to ignore spectra with too lower ion counts
+tic_threshold = 1e3
+
+[peaker.hires]
+
+signal_to_noise = 3.0
+
+[peaker.simple]
+
+# Simply removing noise data.
+distance = 0.03
+threshold = 15
+# When a "peak" reaches this width, treat it as multiple peaks.
+max_peak_width = 0.06
