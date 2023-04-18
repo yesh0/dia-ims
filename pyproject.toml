@@ -1,0 +1,33 @@
+[tool.pdm]
+
+[project]
+name = "diaIMS"
+version = "0.1.0"
+description = "Deconvolution on IMS data"
+authors = [
+    {name = "Shenghui Ye", email = "yesh@aliyun.com"},
+]
+dependencies = [
+    "numpy>=1.24.2",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.1",
+    "pyopenms-nightly>=3.0.0.dev20230303",
+    "tomli>=2.0.1",
+    "scipy>=1.9.3",
+    "tqdm>=4.65.0",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "MIT"}
+
+[project.scripts]
+dia-ims = "dia.__main__:main"
+
+[build-system]
+requires = ["pdm-pep517>=1.0"]
+build-backend = "pdm.pep517.api"
+
+[[tool.pdm.source]]
+name = "openms-nightly"
+url = "https://pypi.cs.uni-tuebingen.de/simple"
+verify_ssl = true
