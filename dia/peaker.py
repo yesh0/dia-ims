@@ -40,7 +40,7 @@ class PeakPicker:
             dt = s.getDriftTime()
             if dt not in drift_times:
                 drift_times[dt] = ([], [])
-            drift_times[dt][s.getMSLevel() - 1].append(i)
+            drift_times[dt][s.getMSLevel() - 1].append(s)
         _info("drift time counts: %d", len(drift_times))
         return drift_times
 
@@ -66,14 +66,11 @@ class PeakPicker:
         if not exp.openFile(f):
             raise ValueError("possibly wrong file format, expecting an mzML file")
 
-        bins = self.classify_peaks(exp)
-        progress = tqdm.tqdm(bins.items())
-        for bin_i, (ms1_spectra, ms2_spectra) in progress:
-            raw1 = [exp.getSpectrum(i) for i in ms1_spectra]
-            raw2 = [exp.getSpectrum(i) for i in ms2_spectra]
-
-            merged1 = self.merged_spectra(raw1)
-            merged2 = self.merged_spectra(raw2)
+        drift_times = self.classify_peaks(exp)
+        progress = tqdm.tqdm(drift_times.items())
+        for dt, (ms1_spectra, ms2_spectra) in progress:
+            merged1 = self.merged_spectra(ms1_spectra)
+            merged2 = self.merged_spectra(ms2_spectra)
 
             for raw, exp in zip((merged1, merged2), (peak1_map, peak2_map)):
                 progress.set_description(f"MS{raw.getMSLevel()}")

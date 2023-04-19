@@ -1,3 +1,6 @@
+import typing
+
+import numpy as np
 import pyopenms as ms
 from matplotlib import pyplot as plt
 
@@ -14,7 +17,29 @@ def subplots() -> tuple[plt.Figure, plt.Axes]:
     return plt.subplots()
 
 
-def show_raw_spectrum(orig: ms.MSSpectrum, peaks: ms.MSSpectrum):
+def plot_peaks(ax: plt.Axes, x: np.ndarray, y: np.ndarray, width: float, label=""):
+    ax.plot(
+        np.stack((x - width/2, x, x + width/2)).T.reshape(-1),
+        np.stack((np.zeros_like(y), y, np.zeros_like(y))).T.reshape(-1),
+        label=label,
+    )
+
+
+def scatter_map(exp: ms.MSExperiment):
+    fig, ax = subplots()
+    mzs, dts, intensities = np.array(([], [], []))
+    peaks: ms.MSSpectrum
+    for peaks in exp:
+        mz, intensity = peaks.get_peaks()
+        mzs = np.concatenate((mzs, mz))
+        intensities = np.concatenate((intensities, intensity))
+        dts = np.concatenate((dts, np.ones_like(mz) * peaks.getDriftTime()))
+    fig.colorbar(ax.scatter(mzs, dts, s=intensities/intensities.max()*5, c=intensities))
+    fig.show()
+    plt.show()
+
+
+def show_raw_spectrum(orig: ms.MSSpectrum, peaks: typing.Optional[ms.MSSpectrum] = None):
     fig, ax = subplots()
     fig.tight_layout()
     ax.set_xlabel("$m/z$")
@@ -23,8 +48,9 @@ def show_raw_spectrum(orig: ms.MSSpectrum, peaks: ms.MSSpectrum):
     mz, intensity = orig.get_peaks()
     ax.plot(mz, intensity, "black", linewidth=0.5)
 
-    mz, intensity = peaks.get_peaks()
-    ax.plot(mz, intensity, "ro", ms=2.0)
+    if peaks is not None:
+        mz, intensity = peaks.get_peaks()
+        ax.plot(mz, intensity, "ro", ms=2.0)
 
     fig.show()
     plt.show()
