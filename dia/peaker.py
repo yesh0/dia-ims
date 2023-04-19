@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import dataclass
 
@@ -11,6 +12,10 @@ from dia import plotting
 from dia.config import Config
 
 
+_logger = logging.getLogger(__package__)
+_info = _logger.info
+
+
 @dataclass
 class PeakPicker:
     config: Config
@@ -19,6 +24,31 @@ class PeakPicker:
     @classmethod
     def _get_cache_path(cls, path: str):
         return os.path.realpath(f"{path}.peaks.mzML")
+
+    @classmethod
+    def classify_peaks(cls, exp: ms.OnDiscMSExperiment):
+        """
+        Groups spectra by their drift time.
+
+        In our IMS experiment, each IMS cycle produces N spectra,
+        and we repeat for M times.
+
+        Converted mzML files (from Waters RAW by ProteoWizard) seems to have
+        M distinct retention time and N distinct drift time. While most applications
+        merge every N spectra into one, resulting in M spectra in retention time,
+        we actually want merging every M spectra to get data with respect to drift time.
+        So we have to do the merging ourselves, instead of using MsConvert to do so.
+        """
+        spectrum_count = exp.getMetaData().size()
+        drift_times = {}
+        for i in tqdm.trange(spectrum_count):
+            s = exp.getSpectrum(i)
+            dt = s.getDriftTime()
+            if dt not in drift_times:
+                drift_times[dt] = ([], [])
+            drift_times[dt][s.getMSLevel() - 1].append(i)
+        _info("drift time counts: %d", len(drift_times))
+        return drift_times
 
     def pick_peaks(self, f: str):
         peak_map = ms.MSExperiment()
@@ -31,6 +61,7 @@ class PeakPicker:
         if picker not in ("hires", "simple"):
             raise ValueError("wrong configuration peaker.picker, expecting \"hires\" or \"simple\"")
 
+        # Cache or not.
         cache = self._get_cache_path(f)
         if caches and os.path.exists(cache):
             if os.stat(f).st_mtime < os.stat(cache).st_mtime:
@@ -41,22 +72,27 @@ class PeakPicker:
         if not exp.openFile(f):
             raise ValueError("possibly wrong file format, expecting an mzML file")
 
-        progress = tqdm.trange(exp.getMetaData().size())
+        bins = self.classify_peaks(exp)
+        progress = tqdm.tqdm(bins.items())
+        for bin_i, (ms1_spectra, ms2_spectra) in progress:
+            raw1 = [exp.getSpectrum(i) for i in ms1_spectra]
+            raw2 = [exp.getSpectrum(i) for i in ms2_spectra]
 
-        for i in progress:
-            raw: ms.MSSpectrum = exp.getSpectrum(i)
-            progress.set_description(f"{i} ({raw.getMSLevel()})")
-            total_ion_count = raw.calculateTIC()
-            if total_ion_count < tic_threshold:
-                continue
-            self.sort_spectrum(raw)
-            if picker == "hires":
-                s = self.hires_peaking(raw)
-            else:
-                s = self.simplistic_peaking(raw)
-            if debug:
-                plotting.show_raw_spectrum(raw, s)
-            peak_map.addSpectrum(s)
+            merged1 = self.merged_spectra(raw1)
+            merged2 = self.merged_spectra(raw2)
+
+            for raw in (merged1, merged2):
+                progress.set_description(f"MS{raw.getMSLevel()}")
+                total_ion_count = raw.calculateTIC()
+                if total_ion_count < tic_threshold:
+                    continue
+                if picker == "hires":
+                    s = self.hires_peaking(raw)
+                else:
+                    s = self.simplistic_peaking(raw)
+                if debug:
+                    plotting.show_raw_spectrum(raw, s)
+                peak_map.addSpectrum(s)
         peak_map.updateRanges()
 
         ms.MzMLFile().store(cache, peak_map)
@@ -151,16 +187,7 @@ class PeakPicker:
         return peaks
 
     @classmethod
-    def sort_spectrum(cls, s: ms.MSSpectrum):
-        """
-        Makes data in a spectrum ordered in place.
-
-        With ProteoWizard, the merged spectra contain data concatenated from multiple spectra.
-        The data arrays are not sorted, resulting in data like
-        ([1, 2, 3, ..., 99, 1, 2, 3, ..., 99], [intensities...]), which algorithms just cannot
-        process in any way.
-        """
-        mz, intensity = s.get_peaks()
+    def sort_spectrum(cls, mz: np.ndarray, intensity: np.ndarray):
         indices = np.argsort(mz)
         mz, intensity = mz[indices], intensity[indices]
         merged_mz, merged_intensity = [], []
@@ -170,7 +197,14 @@ class PeakPicker:
                 merged_intensity.append(i)
             else:
                 merged_intensity[-1] += i
-        s.clear(False)
-        s.clearRanges()
-        s.set_peaks((merged_mz, merged_intensity))
-        s.updateRanges()
+        return merged_mz, merged_intensity
+
+    def merged_spectra(self, merging_spectra: list[ms.MSSpectrum]):
+        merged = ms.MSSpectrum(merging_spectra[0])
+        merged.clear(False)
+        merged.clearRanges()
+        mzs, intensities = zip(*(s.get_peaks() for s in merging_spectra))
+        merged.set_peaks(self.sort_spectrum(np.concatenate(mzs), np.concatenate(intensities)))
+        merged.setRT(merged.getDriftTime())
+        merged.updateRanges()
+        return merged
