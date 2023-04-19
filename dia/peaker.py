@@ -1,5 +1,4 @@
 import logging
-import os
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -8,9 +7,8 @@ import pyopenms as ms
 import tqdm
 from scipy.signal import find_peaks, savgol_filter, argrelmin
 
-from dia import plotting
+from dia import plotting, utils
 from dia.config import Config
-
 
 _logger = logging.getLogger(__package__)
 _info = _logger.info
@@ -20,10 +18,6 @@ _info = _logger.info
 class PeakPicker:
     config: Config
     """The config."""
-
-    @classmethod
-    def _get_cache_path(cls, path: str):
-        return os.path.realpath(f"{path}.peaks.mzML")
 
     @classmethod
     def classify_peaks(cls, exp: ms.OnDiscMSExperiment):
@@ -50,8 +44,8 @@ class PeakPicker:
         _info("drift time counts: %d", len(drift_times))
         return drift_times
 
-    def pick_peaks(self, f: str):
-        peak_map = ms.MSExperiment()
+    def pick_peaks(self, f: str) -> tuple[ms.MSExperiment, ms.MSExperiment]:
+        peak1_map, peak2_map = ms.MSExperiment(), ms.MSExperiment()
         exporter = ms.MzMLFile()
 
         caches = self.config.require(bool, "peaker", "cache")
@@ -62,11 +56,11 @@ class PeakPicker:
             raise ValueError("wrong configuration peaker.picker, expecting \"hires\" or \"simple\"")
 
         # Cache or not.
-        cache = self._get_cache_path(f)
-        if caches and os.path.exists(cache):
-            if os.stat(f).st_mtime < os.stat(cache).st_mtime:
-                exporter.load(cache, peak_map)
-                return peak_map
+        ms1_cache, ms2_cache = utils.get_cache_files(f, "peaks1.mzML", "peaks2.mzML")
+        if caches and utils.is_cache_recent(f, ms1_cache, ms2_cache):
+            exporter.load(ms1_cache, peak1_map)
+            exporter.load(ms2_cache, peak2_map)
+            return peak1_map, peak2_map
 
         exp = ms.OnDiscMSExperiment()
         if not exp.openFile(f):
@@ -81,7 +75,7 @@ class PeakPicker:
             merged1 = self.merged_spectra(raw1)
             merged2 = self.merged_spectra(raw2)
 
-            for raw in (merged1, merged2):
+            for raw, exp in zip((merged1, merged2), (peak1_map, peak2_map)):
                 progress.set_description(f"MS{raw.getMSLevel()}")
                 total_ion_count = raw.calculateTIC()
                 if total_ion_count < tic_threshold:
@@ -92,12 +86,14 @@ class PeakPicker:
                     s = self.simplistic_peaking(raw)
                 if debug:
                     plotting.show_raw_spectrum(raw, s)
-                peak_map.addSpectrum(s)
-        peak_map.updateRanges()
+                exp.addSpectrum(s)
+        peak1_map.updateRanges()
+        peak2_map.updateRanges()
 
-        ms.MzMLFile().store(cache, peak_map)
+        exporter.store(ms1_cache, peak1_map)
+        exporter.store(ms2_cache, peak2_map)
 
-        return peak_map
+        return peak1_map, peak2_map
 
     def simplistic_peaking(self, s: ms.MSSpectrum):
         """
