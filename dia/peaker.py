@@ -184,12 +184,24 @@ class PeakPicker:
         indices = np.argsort(mz)
         mz, intensity = mz[indices], intensity[indices]
         merged_mz, merged_intensity = [], []
+        to_be_merged_mz, to_be_merged_i = [], []
+
+        def commit():
+            nonlocal merged_mz, merged_intensity
+            nonlocal to_be_merged_mz, to_be_merged_i
+            if len(to_be_merged_mz) > 0:
+                total = np.sum(to_be_merged_i)
+                if total != 0:
+                    merged_mz.append(np.average(to_be_merged_mz, weights=to_be_merged_i))
+                    merged_intensity.append(total)
+                to_be_merged_mz.clear()
+                to_be_merged_i.clear()
         for mz_value, i in zip(mz, intensity):
-            if len(merged_mz) == 0 or merged_mz[-1] != mz_value:
-                merged_mz.append(mz_value)
-                merged_intensity.append(i)
-            else:
-                merged_intensity[-1] += i
+            if len(to_be_merged_mz) != 0 and abs(to_be_merged_mz[-1] - mz_value) > 0.000005:
+                commit()
+            to_be_merged_mz.append(mz_value)
+            to_be_merged_i.append(i)
+        commit()
         return merged_mz, merged_intensity
 
     def merged_spectra(self, merging_spectra: list[ms.MSSpectrum]):
