@@ -35,6 +35,8 @@ def scatter_map(exp: ms.MSExperiment):
         intensities = np.concatenate((intensities, intensity))
         dts = np.concatenate((dts, np.ones_like(mz) * peaks.getDriftTime()))
     fig.colorbar(ax.scatter(mzs, dts, s=intensities/intensities.max()*5, c=intensities))
+    ax.set_xlabel("$m/z$")
+    ax.set_ylabel("Relative Drift Time")
     fig.show()
     plt.show()
 

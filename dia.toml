@@ -16,7 +16,7 @@ tic_threshold = 1e3
 
 [peaker.hires]
 
-signal_to_noise = 3.0
+signal_to_noise = 10.0
 
 [peaker.simple]
 
@@ -25,3 +25,25 @@ distance = 0.03
 threshold = 15
 # When a "peak" reaches this width, treat it as multiple peaks.
 max_peak_width = 0.06
+
+[feature_finder]
+
+cache = true
+
+debug = 1
+
+# See https://openms.de/current_doxygen/html/classOpenMS_1_1FeatureFinderAlgorithmPicked.html#details
+min_score = 0.8
+
+[feature_finder.mass_trace]
+
+mz_tolerance = 0.02
+min_spectra = 5
+slope_bound = 0.1
+
+[feature_finder.isotopic_pattern]
+
+charge_low = 1
+charge_high = 4
+mz_tolerance = 0.01
+intensity_percentage = 5.0
