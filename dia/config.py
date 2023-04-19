@@ -24,6 +24,14 @@ class Config:
         except KeyError:
             raise KeyError("config item not found: %s", ".".join(path))
 
+    def set(self, value: typing.Any, *path: str):
+        v = self.config
+        for parent in path[:-1]:
+            if parent not in v:
+                v[parent] = {}
+            v = v[parent]
+        v[path[-1]] = value
+
     def optional(self, typer: typing.Type[T], default: T, *path: str) -> T:
         try:
             return self.require(typer, *path)

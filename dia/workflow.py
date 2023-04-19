@@ -8,6 +8,7 @@ from dia import plotting
 from dia.config import Config
 from dia.featurer import FeatureFinder, FeatureIntensityMap
 from dia.peaker import PeakPicker
+from dia.searcher import ProteinLibrarySearcher
 
 _logger = logging.getLogger(__package__)
 _info = _logger.info
@@ -24,6 +25,7 @@ class DiaImsWorkflow:
         peak1_map, peak2_map = PeakPicker(self.config).pick_peaks(f)
         plotting.scatter_map(peak1_map)
         plotting.scatter_map(peak2_map)
+
         ff = FeatureFinder(self.config)
         _info("feature finding...")
         feature_maps = dict([
@@ -32,6 +34,10 @@ class DiaImsWorkflow:
         ])
         self.plot_features(feature_maps)
         self.plot_feature_heatmap(feature_maps)
+
+        searcher = ProteinLibrarySearcher(self.config)
+        peptides = searcher.search(f, feature_maps[1])
+        print(peptides)
 
     def plot_features(self, feature_maps: dict[int, FeatureIntensityMap]):
         if self.config.require(int, "feature_finder", "debug") >= 2:

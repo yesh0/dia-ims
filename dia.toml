@@ -47,3 +47,21 @@ charge_low = 1
 charge_high = 4
 mz_tolerance = 0.01
 intensity_percentage = 5.0
+
+[peptide_searcher]
+
+[peptide_searcher.library]
+
+library_file = "/path/to/Proteins.fasta"
+cache = true
+
+# Modifications, only IAA supported yet
+modifications = "IAA"
+# Only trypsin supported yet
+digestion = "trypsin"
+max_digestion_misses = 3
+
+[peptide_searcher.search]
+
+cache = true
+mass_error_value = 0.02
