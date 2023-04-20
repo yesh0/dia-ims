@@ -65,3 +65,7 @@ max_digestion_misses = 3
 
 cache = true
 mass_error_value = 0.02
+
+[matcher]
+
+score_threshold = 0.5

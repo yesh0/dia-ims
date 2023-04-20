@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os.path
-import sys
 
 from dia import plotting
 from dia.config import Config
@@ -13,7 +12,7 @@ _error = _logger.error
 
 
 def main():
-    logging.basicConfig(stream=sys.stdout)
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Processes IMS data files (.mzML)")
     parser.add_argument("files", metavar="mzML", nargs="+", type=str)
     parser.add_argument("-c", "--config", metavar="config", dest="config", type=argparse.FileType("rb"), required=True)

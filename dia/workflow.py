@@ -7,6 +7,7 @@ import tqdm
 from dia import plotting
 from dia.config import Config
 from dia.featurer import FeatureFinder, FeatureIntensityMap
+from dia.matcher import TandemMatcher
 from dia.peaker import PeakPicker
 from dia.searcher import ProteinLibrarySearcher
 
@@ -35,9 +36,14 @@ class DiaImsWorkflow:
         self.plot_features(feature_maps)
         self.plot_feature_heatmap(feature_maps)
 
+        _info("peptide searching...")
         searcher = ProteinLibrarySearcher(self.config)
         peptides = searcher.search(f, feature_maps[1])
         print(peptides)
+
+        _info("performing deconvolution...")
+        matcher = TandemMatcher(self.config)
+        matcher.match(feature_maps[1], feature_maps[2])
 
     def plot_features(self, feature_maps: dict[int, FeatureIntensityMap]):
         if self.config.require(int, "feature_finder", "debug") >= 2:

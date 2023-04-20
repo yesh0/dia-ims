@@ -96,6 +96,8 @@ class FeatureIntensityMap:
         self.tree = KDTree(np.array([self.rts, self.mzs]).T)
         self.feature_map = feature_map
         self.peak_map = peak_map
+        self.dt_indices = [(self.get_dt_span(feature)[0], i) for i, feature in enumerate(feature_map)]
+        self.dt_indices.sort()
 
     def __getitem__(self, key: tuple[float, float]):
         rt, mz = key
@@ -106,6 +108,58 @@ class FeatureIntensityMap:
         mz, intensity = s.get_peaks()
         left, right = bisect.bisect_left(mz, region[0]), bisect.bisect_left(mz, region[1])
         return mz[left:right], intensity[left:right]
+
+    @classmethod
+    def get_dt_span(cls, feature: ms.Feature) -> tuple[float, float]:
+        hull: ms.ConvexHull2D = feature.getConvexHull()
+        dt, mz = np.array(hull.getHullPoints()).T
+        return dt.mean(), dt.ptp()
+
+    def merge_convex_hulls(self, feature: ms.Feature) -> np.ndarray:
+        grid = {}
+        for hull in feature.getConvexHulls():
+            for dt, mz in hull.getHullPoints():
+                intensity = self[dt, mz]
+                if dt in grid:
+                    grid[dt] += intensity
+                else:
+                    grid[dt] = intensity
+        return np.array(sorted(grid.items()))
+
+    @classmethod
+    def pseudo_dot(cls, a: np.ndarray, b: np.ndarray, dt_error=1e-3) -> float:
+        product = 0
+        i, j = 0, 0
+        while i < len(a) and j < len(b):
+            x1, y1 = a[i]
+            x2, y2 = b[j]
+            if np.abs(x1 - x2) < dt_error:
+                product += y1 * y2
+                i += 1
+                j += 1
+            elif x1 < x2:
+                i += 1
+            else:
+                j += 1
+        return product
+
+    def match_fragment_features(self, primary: ms.Feature, primary_map: "FeatureIntensityMap"):
+        matches = []
+        center, length = primary_map.get_dt_span(primary)
+        primary_profile = primary_map.merge_convex_hulls(primary)
+        search_span = length / 4
+        start = bisect.bisect_left(self.dt_indices, (center - search_span, 0))
+        for i in range(start, len(self.dt_indices)):
+            sec_center, index = self.dt_indices[i]
+            if center + search_span < sec_center:
+                break
+            sec: ms.Feature = self.feature_map[i]
+            secondary_profile = self.merge_convex_hulls(sec)
+            score = (self.pseudo_dot(primary_profile, secondary_profile) /
+                     np.sqrt((primary_profile.T[1] ** 2).sum() * (secondary_profile.T[1] ** 2).sum())
+                     ) * primary.getOverallQuality() * sec.getOverallQuality()
+            matches.append((score, sec))
+        return matches
 
     def plot_feature(self, feature: ms.Feature):
         hulls = []
