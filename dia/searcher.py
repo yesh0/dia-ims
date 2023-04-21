@@ -88,13 +88,20 @@ class ProteinLibrarySearcher:
         return dedup
 
     def search(self, f: str, feature_map: FeatureIntensityMap):
+        """
+        Constructs search library files with a given FASTA file, matches features to possible digested peptides,
+        annotates the feature map and returns a data frame with extra info (i.e. scores).
+        """
         mapping_file, struct_mapping = self.prepare_library(f, self.config.require(str, "peptide_searcher", "library",
                                                                                    "library_file"))
-        cache, = utils.get_cache_files(f, "tab.tsv")
-        if self.config.require(bool, "peptide_searcher", "search") and utils.is_cache_recent(f, cache):
-            table = ms.MzTab()
-            ms.MzTabFile().load(cache, table)
-            return self.parse_mz_tab(cache)
+        cache, annotations = utils.get_cache_files(f, "tab.tsv", "annotated.featureXML")
+        if self.config.require(bool, "peptide_searcher", "search", "cache"):
+            if utils.is_cache_recent(f, cache, annotations):
+                table = ms.MzTab()
+                ms.MzTabFile().load(cache, table)
+                feature_map.feature_map = ms.FeatureMap()
+                ms.FeatureXMLFile().load(annotations, feature_map.feature_map)
+                return self.parse_mz_tab(cache)
 
         ams = ms.AccurateMassSearchEngine()
         ams_params = ams.getParameters()
@@ -111,6 +118,7 @@ class ProteinLibrarySearcher:
 
         ams.run(feature_map.feature_map, table)
         ms.MzTabFile().store(cache, table)
+        ms.FeatureXMLFile().store(annotations, feature_map.feature_map)
         return self.parse_mz_tab(cache)
 
     @classmethod

@@ -56,8 +56,7 @@ class FeatureFinder:
         feature_map.updateRanges()
         feature_map.sortByOverallQuality()
         feature_map.setUniqueIds()
-        writer = ms.FeatureXMLFile()
-        writer.store(cache, feature_map)
+        ms.FeatureXMLFile().store(cache, feature_map)
         return feature_map
 
     @classmethod
@@ -98,10 +97,14 @@ class FeatureIntensityMap:
         self.peak_map = peak_map
         self.dt_indices = [(self.get_dt_span(feature)[0], i) for i, feature in enumerate(feature_map)]
         self.dt_indices.sort()
+        self.feature_by_id = dict((feature.getUniqueId(), i) for i, feature in enumerate(feature_map))
 
     def __getitem__(self, key: tuple[float, float]):
         rt, mz = key
         return self.intensities[self.tree.query((rt, mz))[1]]
+
+    def get_feature_by_id(self, unique_id: int) -> ms.Feature:
+        return self.feature_map[self.feature_by_id[unique_id]]
 
     def query_peaks(self, rt: float, region: tuple[float, float]):
         s: ms.MSSpectrum = [s for s in self.peak_map if abs(s.getRT() - rt) < 0.001][0]
@@ -158,7 +161,7 @@ class FeatureIntensityMap:
             score = (self.pseudo_dot(primary_profile, secondary_profile) /
                      np.sqrt((primary_profile.T[1] ** 2).sum() * (secondary_profile.T[1] ** 2).sum())
                      ) * primary.getOverallQuality() * sec.getOverallQuality()
-            matches.append((score, sec))
+            matches.append((score, sec.getUniqueId()))
         return matches
 
     def plot_feature(self, feature: ms.Feature):

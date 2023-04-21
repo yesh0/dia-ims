@@ -21,11 +21,15 @@ class DiaImsWorkflow:
     """The config."""
 
     def process(self, f: str):
+        should_plot = self.config.require(bool, "plot")
+
         _info("processing %s", f)
         _info("peak-picking...")
         peak1_map, peak2_map = PeakPicker(self.config).pick_peaks(f)
-        plotting.scatter_map(peak1_map)
-        plotting.scatter_map(peak2_map)
+
+        if should_plot:
+            plotting.scatter_map(peak1_map)
+            plotting.scatter_map(peak2_map)
 
         ff = FeatureFinder(self.config)
         _info("feature finding...")
@@ -33,17 +37,19 @@ class DiaImsWorkflow:
             (i + 1, FeatureIntensityMap(ff.find(peak_map, f, i + 1), peak_map))
             for i, peak_map in enumerate(tqdm.tqdm((peak1_map, peak2_map)))
         ])
-        self.plot_features(feature_maps)
-        self.plot_feature_heatmap(feature_maps)
+
+        if should_plot:
+            self.plot_features(feature_maps)
+            self.plot_feature_heatmap(feature_maps)
 
         _info("peptide searching...")
         searcher = ProteinLibrarySearcher(self.config)
         peptides = searcher.search(f, feature_maps[1])
-        print(peptides)
 
         _info("performing deconvolution...")
         matcher = TandemMatcher(self.config)
-        matcher.match(feature_maps[1], feature_maps[2])
+        matches = matcher.match(feature_maps[1], feature_maps[2])
+        print(matcher.organize(feature_maps[1], feature_maps[2], matches, peptides)[1])
 
     def plot_features(self, feature_maps: dict[int, FeatureIntensityMap]):
         if self.config.require(int, "feature_finder", "debug") >= 2:

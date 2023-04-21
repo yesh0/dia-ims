@@ -1,3 +1,5 @@
+plot = false
+
 [peaker]
 
 # Set to true to read from the peak cache if the cache is newer.
@@ -68,4 +70,5 @@ mass_error_value = 0.02
 
 [matcher]
 
+# cache = false # Cache not supported yet.
 score_threshold = 0.5
