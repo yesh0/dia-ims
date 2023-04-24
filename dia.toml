@@ -71,4 +71,5 @@ mass_error_value = 0.02
 [matcher]
 
 # cache = false # Cache not supported yet.
+debug = 0
 score_threshold = 0.5

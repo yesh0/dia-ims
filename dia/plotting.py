@@ -17,11 +17,11 @@ def subplots() -> tuple[plt.Figure, plt.Axes]:
     return plt.subplots()
 
 
-def plot_peaks(ax: plt.Axes, x: np.ndarray, y: np.ndarray, width: float, label=""):
+def plot_peaks(ax: plt.Axes, x: np.ndarray, y: np.ndarray, width: float, **kwargs):
     ax.plot(
         np.stack((x - width/2, x, x + width/2)).T.reshape(-1),
         np.stack((np.zeros_like(y), y, np.zeros_like(y))).T.reshape(-1),
-        label=label,
+        **kwargs,
     )
 
 
@@ -41,18 +41,23 @@ def scatter_map(exp: ms.MSExperiment):
     plt.show()
 
 
-def show_raw_spectrum(orig: ms.MSSpectrum, peaks: typing.Optional[ms.MSSpectrum] = None):
+def show_raw_spectrum(orig: typing.Optional[ms.MSSpectrum] = None, peaks: typing.Optional[ms.MSSpectrum] = None):
     fig, ax = subplots()
     fig.tight_layout()
     ax.set_xlabel("$m/z$")
     ax.set_ylabel("Intensity")
 
-    mz, intensity = orig.get_peaks()
-    ax.plot(mz, intensity, "black", linewidth=0.5)
+    if orig is not None:
+        mz, intensity = orig.get_peaks()
+        ax.plot(mz, intensity, "black", linewidth=0.5)
 
     if peaks is not None:
         mz, intensity = peaks.get_peaks()
-        ax.plot(mz, intensity, "ro", ms=2.0)
+        if orig is None:
+            plot_peaks(ax, mz, intensity, 0.02)
+            ax.set_title(peaks.getName())
+        else:
+            ax.plot(mz, intensity, "ro", ms=2.0)
 
     fig.show()
     plt.show()

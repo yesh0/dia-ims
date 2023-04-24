@@ -49,7 +49,8 @@ class DiaImsWorkflow:
         _info("performing deconvolution...")
         matcher = TandemMatcher(self.config)
         matches = matcher.match(feature_maps[1], feature_maps[2])
-        print(matcher.organize(feature_maps[1], feature_maps[2], matches, peptides)[1])
+        deconvoluted, proteins = matcher.organize(feature_maps[1], feature_maps[2], matches, peptides)
+        matcher.stat(f, feature_maps[1], feature_maps[2], deconvoluted, proteins)
 
     def plot_features(self, feature_maps: dict[int, FeatureIntensityMap]):
         if self.config.require(int, "feature_finder", "debug") >= 2:

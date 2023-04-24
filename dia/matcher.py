@@ -1,10 +1,13 @@
+import pprint
 import typing
 from dataclasses import dataclass
 
+import numpy as np
 import tqdm
 import pandas as pd
 import pyopenms as ms
 
+from dia import utils, plotting
 from dia.config import Config
 from dia.featurer import FeatureIntensityMap
 
@@ -77,7 +80,8 @@ class TandemMatcher:
             if modifications not in peptide_indices[identifier]:
                 peptide_indices[identifier][modifications] = []
             peptide_indices[identifier][modifications].append(row)
-        proteins = {}
+        # protein identifier -> peptide identifier -> [(peptide info, feature id)]
+        proteins: dict[str, dict[int, list[tuple[pd.Series, int]]]] = {}
         # This should have been filled by the peptide searcher.
         for ms1_feature, _ in deconvoluted.values():
             for identification in ms1_feature.getPeptideIdentifications():
@@ -106,6 +110,52 @@ class TandemMatcher:
                         proteins[protein_identifier][number].append((peptide, ms1_feature.getUniqueId()))
         return deconvoluted, proteins
 
+    def stat(self, f: str, ms1: FeatureIntensityMap, ms2: FeatureIntensityMap,
+             deconvoluted: dict[int, tuple[ms.Feature, list[tuple[float, ms.Feature]]]],
+             proteins: dict[str, dict[int, list[tuple[pd.Series, int]]]]):
+        debug = self.config.require(int, "matcher", "debug") >= 1
+        deconvoluted_output, = utils.get_cache_files(f, "deconvoluted.mzML")
+        exp = ms.MSExperiment()
+        for ms1_feature_id, (ms1_feature, matches) in deconvoluted.items():
+            tandem = ms.MSSpectrum()
+            precursor = ms.Precursor()
+            precursor.setMZ(ms1_feature.getMZ())
+            precursor.setCharge(ms1_feature.getCharge())
+            precursor.setIntensity(ms1_feature.getIntensity())
+            precursor.setDriftTime(ms1_feature.getRT())
+            tandem.setPrecursors([precursor])
+            tandem.setDriftTime(ms1_feature.getRT())
+            tandem.setRT(ms1_feature.getRT())
+            tandem.setName("/".join(self._get_all_identifiers(ms1_feature))
+                           or f"m/z {ms1_feature.getMZ()}(+{ms1_feature.getCharge()})")
+            peaks = []
+            for ratio, ms2_feature in matches:
+                for hull in ms2_feature.getConvexHulls():
+                    mzs = []
+                    intensity = 0
+                    for dt, mz in hull.getHullPoints():
+                        intensity += ms2[dt, mz]
+                        mzs.append(mz)
+                    peaks.append((np.average(mzs), intensity * ratio))
+            peaks.sort()
+            tandem.set_peaks(tuple(np.array(peaks).T))
+            if debug:
+                plotting.show_raw_spectrum(None, tandem)
+            exp.addSpectrum(tandem)
+        exp.updateRanges()
+        ms.MzMLFile().store(deconvoluted_output, exp)
+
+        total_intensities = {}
+        for protein, peptides in proteins.items():
+            total = 0.
+            for peptide_id, matches in peptides.items():
+                for peptide_info, ms1_feature_id in matches:
+                    score = peptide_info["best_search_engine_score[1]"]
+                    intensity = ms1.merge_convex_hulls(ms1.get_feature_by_id(ms1_feature_id)).T[1].sum()
+                    total += score * intensity
+            total_intensities[protein] = total
+        pprint.pprint(total_intensities)
+
     @classmethod
     def _reverse_dict_in_dict(cls, dict_in_dict: dict[int, dict[int, float]]):
         reversed_dict = {}
@@ -115,3 +165,14 @@ class TandemMatcher:
                     reversed_dict[j] = {}
                 reversed_dict[j][i] = score
         return reversed_dict
+
+    @classmethod
+    def _get_all_identifiers(cls, feature: ms.Feature):
+        sequences = []
+        for identification in feature.getPeptideIdentifications():
+            for hit in identification.getHits():
+                identifiers = hit.getMetaValue("identifier")
+                pep_sequences = hit.getMetaValue("description")
+                if len(identifiers) != 0 and identifiers[0] != b"null" and len(pep_sequences) != 0:
+                    sequences.extend(seq.decode() for seq in pep_sequences)
+        return sequences
