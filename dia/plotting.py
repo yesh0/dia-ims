@@ -25,12 +25,16 @@ def plot_peaks(ax: plt.Axes, x: np.ndarray, y: np.ndarray, width: float, **kwarg
     )
 
 
-def scatter_map(exp: ms.MSExperiment):
+def scatter_map(exp: ms.MSExperiment, threshold=1.0):
     fig, ax = subplots()
     mzs, dts, intensities = np.array(([], [], []))
     peaks: ms.MSSpectrum
     for peaks in exp:
         mz, intensity = peaks.get_peaks()
+        if len(mz) == 0:
+            continue
+        indices = intensity > intensity.mean() * threshold
+        mz, intensity = mz[indices], intensity[indices]
         mzs = np.concatenate((mzs, mz))
         intensities = np.concatenate((intensities, intensity))
         dts = np.concatenate((dts, np.ones_like(mz) * peaks.getDriftTime()))
@@ -41,7 +45,8 @@ def scatter_map(exp: ms.MSExperiment):
     plt.show()
 
 
-def show_raw_spectrum(orig: typing.Optional[ms.MSSpectrum] = None, peaks: typing.Optional[ms.MSSpectrum] = None):
+def show_raw_spectrum(orig: typing.Optional[ms.MSSpectrum] = None, peaks: typing.Optional[ms.MSSpectrum] = None,
+                      title=""):
     fig, ax = subplots()
     fig.tight_layout()
     ax.set_xlabel("$m/z$")
@@ -59,5 +64,6 @@ def show_raw_spectrum(orig: typing.Optional[ms.MSSpectrum] = None, peaks: typing
         else:
             ax.plot(mz, intensity, "ro", ms=2.0)
 
+    ax.set_title(title)
     fig.show()
     plt.show()

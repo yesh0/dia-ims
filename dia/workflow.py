@@ -40,6 +40,7 @@ class DiaImsWorkflow:
 
         if should_plot:
             self.plot_features(feature_maps)
+            self.plot_real_feature_heatmap(feature_maps)
             self.plot_feature_heatmap(feature_maps)
 
         _info("peptide searching...")
@@ -59,6 +60,28 @@ class DiaImsWorkflow:
                 for feature in feature_map.feature_map:
                     if feature.getCharge() >= 2:
                         feature_map.plot_feature(feature)
+
+    def plot_real_feature_heatmap(self, feature_maps: dict[int, FeatureIntensityMap]):
+        if self.config.require(int, "feature_finder", "debug") >= 1:
+            import numpy as np
+            mzs, dts, intensities = np.array(([], [], []))
+            for feature_map in feature_maps.values():
+                feature: ms.Feature
+                for feature in feature_map.feature_map:
+                    dt, mz = np.array(feature.getConvexHull().getHullPoints()).T
+                    intensity = []
+                    for d, m in zip(dt, mz):
+                        intensity.append(feature_map[d, m])
+                    mzs = np.concatenate((mzs, mz))
+                    dts = np.concatenate((dts, dt))
+                    intensities = np.concatenate((intensities, intensity))
+                from matplotlib import pyplot as plt
+                fig, ax = plt.subplots()
+                fig.colorbar(ax.scatter(mzs, dts, s=intensities / intensities.max() * 5, c=intensities))
+                ax.set_xlabel("$m/z$")
+                ax.set_ylabel("Relative Drift Time")
+                fig.show()
+                plt.show()
 
     def plot_feature_heatmap(self, feature_maps: dict[int, FeatureIntensityMap]):
         if self.config.require(int, "feature_finder", "debug") >= 1:
