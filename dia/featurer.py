@@ -153,7 +153,7 @@ class FeatureIntensityMap:
             center, index = self.dt_indices[i]
             if right < center:
                 return
-            feature: ms.Feature = self.feature_map[i]
+            feature: ms.Feature = self.feature_map[index]
             yield feature, center
 
     def match_fragment_features(self, primary: ms.Feature, primary_map: "FeatureIntensityMap", debug=False):
