@@ -1,3 +1,4 @@
+import argparse
 import typing
 
 import tomli
@@ -37,3 +38,15 @@ class Config:
             return self.require(typer, *path)
         except KeyError:
             return default
+
+
+def get_config(args):
+    parser = argparse.ArgumentParser(description="Processes IMS data files (.mzML)")
+    parser.add_argument("files", metavar="mzML", nargs="+", type=str)
+    parser.add_argument("-c", "--config", metavar="config", dest="config", type=argparse.FileType("rb"), required=True)
+    parser.add_argument("-l", "--library", metavar=".FASTA", dest="library", type=str, required=False)
+    args = parser.parse_args(args)
+    config = Config(args.config)
+    if args.library:
+        config.set(args.library, "peptide_searcher", "library", "library_file")
+    return config, args
