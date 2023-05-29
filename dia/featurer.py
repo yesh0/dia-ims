@@ -146,17 +146,23 @@ class FeatureIntensityMap:
                 j += 1
         return product
 
-    def match_fragment_features(self, primary: ms.Feature, primary_map: "FeatureIntensityMap"):
+    def select_features(self, dt_range: tuple[float, float]):
+        left, right = dt_range
+        start = bisect.bisect_left(self.dt_indices, (left, 0))
+        for i in range(start, len(self.dt_indices)):
+            center, index = self.dt_indices[i]
+            if right < center:
+                return
+            feature: ms.Feature = self.feature_map[i]
+            yield feature, center
+
+    def match_fragment_features(self, primary: ms.Feature, primary_map: "FeatureIntensityMap", debug=False):
         matches = []
         center, length = primary_map.get_dt_span(primary)
         primary_profile = primary_map.merge_convex_hulls(primary)
-        search_span = length / 4
-        start = bisect.bisect_left(self.dt_indices, (center - search_span, 0))
-        for i in range(start, len(self.dt_indices)):
-            sec_center, index = self.dt_indices[i]
-            if center + search_span < sec_center:
-                break
-            sec: ms.Feature = self.feature_map[i]
+        search_span = length / 2 + 1
+
+        for sec, sec_center in self.select_features((center - search_span, center + search_span)):
             secondary_profile = self.merge_convex_hulls(sec)
             score = (self.pseudo_dot(primary_profile, secondary_profile) /
                      np.sqrt((primary_profile.T[1] ** 2).sum() * (secondary_profile.T[1] ** 2).sum())
@@ -201,7 +207,8 @@ class FeatureIntensityMap:
         heap_map, _, _ = np.histogram2d(mzs, rts, bins=[400, int(self.peak_map.size() / 3)],
                                         weights=np.log10(intensities))
         fig.tight_layout()
-        t = ax.imshow(heap_map.T, cmap="gnuplot2", aspect="auto", origin="lower")
+        t = ax.imshow(heap_map.T, cmap="gnuplot2", aspect="auto", origin="lower",
+                      extent=[mzs.min(), mzs.max(), rts.min(), rts.max()])
         ax.set_xlabel("$m/z$")
         ax.set_ylabel("Relative RT")
         fig.colorbar(t).ax.set_title("lg $I$")

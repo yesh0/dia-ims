@@ -1,4 +1,4 @@
-plot = false
+plot = true
 
 [peaker]
 
@@ -35,12 +35,12 @@ cache = true
 debug = 1
 
 # See https://openms.de/current_doxygen/html/classOpenMS_1_1FeatureFinderAlgorithmPicked.html#details
-min_score = 0.8
+min_score = 0.5
 
 [feature_finder.mass_trace]
 
 mz_tolerance = 0.02
-min_spectra = 5
+min_spectra = 3
 slope_bound = 0.1
 
 [feature_finder.isotopic_pattern]
@@ -48,7 +48,7 @@ slope_bound = 0.1
 charge_low = 1
 charge_high = 4
 mz_tolerance = 0.01
-intensity_percentage = 5.0
+intensity_percentage = 50.0
 
 [peptide_searcher]
 
@@ -73,3 +73,9 @@ mass_error_value = 0.02
 # cache = false # Cache not supported yet.
 debug = 0
 score_threshold = 0.5
+
+range = [ 2.5, 4.0 ]
+selected = [
+    512.0,
+]
+selected_delta = 1.0

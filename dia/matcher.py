@@ -18,13 +18,24 @@ class TandemMatcher:
     """The config."""
 
     def match(self, ms1: FeatureIntensityMap, ms2: FeatureIntensityMap):
+        dt_range = self.config.optional(list, [-1, -1], "matcher", "range")
+        if len(dt_range) < 2 or dt_range[0] < 0:
+            features = list(ms1.feature_map)
+        else:
+            left, right = dt_range
+            features = [f for f, _ in ms1.select_features((left, right))]
+        return self.match_in(ms1, features, ms2)
+
+    def match_in(self, ms1: FeatureIntensityMap, features: list[ms.Feature], ms2: FeatureIntensityMap):
         threshold = self.config.require(float, "matcher", "score_threshold")
         matched = {}
         feature: ms.Feature
-        for feature in tqdm.tqdm(ms1.feature_map, total=ms1.feature_map.size()):
+        for feature in tqdm.tqdm(features):
+            selectable = self._match_selected(feature.getMZ())
             matches = dict(
                 (unique_id, score)
-                for score, unique_id in ms2.match_fragment_features(feature, ms1) if score > threshold
+                for score, unique_id in ms2.match_fragment_features(feature, ms1, selectable is not None)
+                if score > threshold or selectable is not None
             )
             if len(matches) > 0:
                 matched[feature.getUniqueId()] = matches
@@ -139,8 +150,9 @@ class TandemMatcher:
                     peaks.append((np.average(mzs), intensity * ratio))
             peaks.sort()
             tandem.set_peaks(tuple(np.array(peaks).T))
-            if debug:
-                plotting.show_raw_spectrum(None, tandem)
+            selectable = self._match_selected(precursor.getMZ())
+            if debug or selectable is not None:
+                plotting.show_raw_spectrum(None, tandem, "" if selectable is None else f"Selected: {selectable}")
             exp.addSpectrum(tandem)
         exp.updateRanges()
         ms.MzMLFile().store(deconvoluted_output, exp)
@@ -155,6 +167,14 @@ class TandemMatcher:
                     total += score * intensity
             total_intensities[protein] = total
         pprint.pprint(total_intensities)
+
+    def _match_selected(self, center: float) -> typing.Optional[float]:
+        selected = np.array(self.config.optional(list, [], "matcher", "selected"))
+        delta = self.config.optional(float, 1.0, "matcher", "selected_delta")
+        selectable = np.abs(selected - center) < delta
+        if any(selectable):
+            return selected[np.nonzero(selectable)[0][0]]
+        return None
 
     @classmethod
     def _reverse_dict_in_dict(cls, dict_in_dict: dict[int, dict[int, float]]):
